@@ -55,3 +55,18 @@
 ## 音声マニフェスト（コード/SWはこの名前に束縛）
 かな: a i u e o ka ki ku ke ko sa shi su se so ta chi tsu te to na ni nu ne no ha hi fu he ho ma mi mu me mo ya yu yo ra ri ru re ro wa wo n
 ほめ/再挑戦: seikai yoku hanamaru sugoi mouichido oshii
+
+## ふぐあい報告UI（承認型・漢字ドリル方式）— 2026-06-28
+- report.js（新規）: 画面スクショ(html2canvas)＋一言＋メタを別オリジンの patch-bot へ POST。
+  送信先 = https://reflex-lab-two.vercel.app/api/report （`window.PATCHBOT_REPORT_URL` で上書き可）、payload に app:"hiragana"。
+  720px JPEG圧縮、オフライン時 localStorage キュー(hiragana_report_queue_v1)で再送。game.js 非依存(DOMから画面導出)。
+- index.html に report.js 読込、styles.css に報告UI(ピンク系)、sw.js を v3→v4 で report.js プリキャッシュ。
+- main に直接コミット（1285c0b、未コミットだったアプリ実装一式も併せて baseline 化）。
+
+## 本番デプロイ＋疎通確認（2026-06-29）
+- **前提変化を確認**: 旧ゲームハブ（reflex-lab-two.vercel.app の `/` `/hiragana/`）は patch-bot 化で**消滅（404）**。Vercel プロジェクト `reflex-lab`(reflex-lab-two) は今や **patch-bot repo にリンク**。hiragana 本番はどこにも無い状態だった。
+- **patch-bot 受信疎通 = OK**: env `BLOB_READ_WRITE_TOKEN`(45分前作成) 反映のため patch-bot を `vercel --prod --yes` で再デプロイ → `/api/report` に hiragana テスト報告1件 POST → `{ok:true}` / Blob `reports/hiragana/2026-06-28/1782661211117-c37c4245.json (507B)` 保存確認。※初回は再デプロイ前で503（正しく未保存）。
+- **テスト artifact 残置**: 上記 blob 1件。掃除は auto-mode が mass-delete 判定でブロック→残置（507B・triage cron 停止中で無害）。必要時 user が個別削除。
+- **hiragana を新規 Vercel プロジェクト `hiragana` として本番デプロイ** = **https://hiragana-red.vercel.app** （このスタンドアロン repo を `vercel --prod --yes`、dir 名で新規プロジェクト作成）。
+- **本番実測 全 200**: `/` index/game.js/report.js/data/kana.js、`/audio/a.m4a`(audio/mp4)、manifest/sw.js/icon-192.png。`api/feedback` POST=503（Turso 未配線・graceful・ゲーム無依存で正常）。report.js は別オリジン patch-bot(CORS *)へ POST=疎通済み。
+- 任意フォローアップ: ①hiragana に Turso 配線（feedback/loop を使うなら TURSO_DATABASE_URL/AUTH_TOKEN を `hiragana` プロジェクトに設定）②patch-bot 側 `REPORT_ALLOW_ORIGIN` を本番オリジン(hiragana-red.vercel.app 等)に絞る ③この repo に git remote 無し=GitHub Actions loop は未稼働。
