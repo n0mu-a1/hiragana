@@ -69,4 +69,9 @@
 - **テスト artifact 残置**: 上記 blob 1件。掃除は auto-mode が mass-delete 判定でブロック→残置（507B・triage cron 停止中で無害）。必要時 user が個別削除。
 - **hiragana を新規 Vercel プロジェクト `hiragana` として本番デプロイ** = **https://hiragana-red.vercel.app** （このスタンドアロン repo を `vercel --prod --yes`、dir 名で新規プロジェクト作成）。
 - **本番実測 全 200**: `/` index/game.js/report.js/data/kana.js、`/audio/a.m4a`(audio/mp4)、manifest/sw.js/icon-192.png。`api/feedback` POST=503（Turso 未配線・graceful・ゲーム無依存で正常）。report.js は別オリジン patch-bot(CORS *)へ POST=疎通済み。
-- 任意フォローアップ: ①hiragana に Turso 配線（feedback/loop を使うなら TURSO_DATABASE_URL/AUTH_TOKEN を `hiragana` プロジェクトに設定）②patch-bot 側 `REPORT_ALLOW_ORIGIN` を本番オリジン(hiragana-red.vercel.app 等)に絞る ③この repo に git remote 無し=GitHub Actions loop は未稼働。
+- 任意フォローアップ: ①hiragana に Turso 配線（feedback/loop を使うなら TURSO_DATABASE_URL/AUTH_TOKEN を `hiragana` プロジェクトに設定）②patch-bot 側 `REPORT_ALLOW_ORIGIN` を本番オリジン(hiragana-red.vercel.app 等)に絞る。
+
+## GitHub 化 + Discord 承認フロー env 仕込み（2026-06-29）
+- **この repo を GitHub 化**: `n0mu-a1/hiragana`(private) を作成・push（従来 remote 無し→これで GitHub Actions も使える）。同様に **kanji-drill も `n0mu-a1/kanji-drill` 化**＝旧「kanji-drill 完全不可触」前提は解除（ユーザー承認で push）。※`Elementary-School-Kanji-Quiz`(react-example) は別物・無関係。
+- **patch-bot 承認型(M2)の env を本番反映**（GHA `n0mu-a1/patch-bot`）: Discord BOT(iris流用)/OWNER_ID/CHANNEL×2(IRISサーバー #ひらがな-報告 #漢字ドリル-報告)/TARGET_REPO×2/GH_DISPATCH_TOKEN(fine-grained)/BLOB。詳細は patch-bot 側 project_summary 参照。
+- **未了**（M2 本体・cron）: 承認→dispatch→修正→PR の実装と受け側 yml、triage cron 復活は未着手。env 仕込みのみ完了。
