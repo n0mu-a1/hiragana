@@ -277,6 +277,7 @@
 
   function handleCorrect(el) {
     state.locked = true;
+    stopPrompt();
     el.classList.add("correct");
     if (!state.wrongThisQ) {
       state.firstTryCorrect += 1;
