@@ -1,9 +1,0 @@
-name: dispatch-test
-on:
-  repository_dispatch:
-    types: [ping-test]
-jobs:
-  ping:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "pong ${{ github.event.client_payload.id }}"
