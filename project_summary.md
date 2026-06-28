@@ -14,18 +14,42 @@
 
 ## 完了した変更
 - `tools/gen-audio.sh` — 再現可能な音声生成スクリプト（say -r105 + ffmpeg で先頭120ms/末尾220ms無音付与しAAC化）。
-- `audio/*.m4a` — **52ファイル生成・検証済み**（46かな + ほめ/再挑戦6: seikai/yoku/hanamaru/sugoi/mouichido/oshii）。全長0.30–1.9s、合計**288K**（オフラインキャッシュに十分軽量）。
-- 設計ワークフロー `hiragana-design`（run wf_7f461b24-973）を起動：アーキ/教育UX/config/loop結合の4設計 → 検証済みかなテーブル → codex実装ブリーフを生成中。
+- `audio/*.m4a` — **52ファイル生成・検証済み**（46かな + ほめ/再挑戦6）。合計288K。
+- **codex実装完了**: index.html/styles.css/game.js/game-config.js/data/kana.js/feedback.js/sw.js/manifest/icon + api/feedback.js/db/schema.sql/loop全式/.github/loop.yml 等。
+- **多段検証 全green**: 静的(node --check) / 内容(verify.mjs: kana46・rows{}・音声参照全実在) / loopテスト52/52 / loop:dry-run / **ブラウザE2E（iPhone 390×844）= 音声HTTP200・3択・正解花丸+自動送り・誤答dim+shake+ハロー誘導・結果7×💮・FB送信・統計永続・コンソールエラー0**。
+- **敵対的レビュー（28エージェント・各指摘を再検証）= ブロッカー0**。実在 major1+minor約9+nit約7、誇張5件は棄却。
+- **確定指摘を codex で修正（委譲）・再検証済み**:
+  - [major] game.js タイマー3種をstateで管理し clearTimers() を goHome/startSession/nextQuestion で破棄＋各コールバックにクイズ画面ガード（ホーム遷移時の幽霊出題・音声漏れ・統計汚染を解消）。回帰テストで seen 不増を確認。
+  - [minor] game.js フィードバック=1セッション1記録（endSessionで保留→手動優先、未評価で離脱時のみ自動1件）。回帰で二重記録なしを確認。
+  - [minor] styles.css iPhone幅で🔊🏠を88px化・.choices gap24px・`-webkit-user-select`追加。
+  - [minor] sw.js 非GET即return（POSTのcache.put拒否＝unhandled rejection解消）。CACHE→hiragana-v3。
+  - [minor] iOSアイコン: icon-180/192/512.png をChromeで生成→index.html/manifest/sw.jsに配線。
 
-## 未完了タスク
-- [ ] 設計ワークフロー完了 → 実装ブリーフ受領
-- [ ] codex へ実装委譲（index.html/styles.css/game.js/game-config.js/data/kana.js/feedback.js/sw.js/manifest/icon + api/loop/db/.github 差分）
-- [ ] 受け入れ確認（オフライン起動・音・3択判定・花丸/再挑戦・PWA・gate green・loop:dry）
-- [ ] reflex-lab との結合
+## reflex-lab 結合（完了・2026-06-28）— 「あそびハブ」
+- **方式**: reflex-lab を拡張してマルチゲームハブ化（既存 repo `n0mu-a1/reflex-lab` / Vercel project `reflex-lab`(本番 reflex-lab-two.vercel.app) / Turso `reflex-lab-nomura` / 6h自律ループ / x-poster告知 を全て流用・非破壊）。**commit/push は未実施**（user がレビュー後にデプロイ）。
+- **調査で判明**: 「別アプリ統合」= `/Users/im/AI/kanji-drill`（教育漢字1013字4択PWA・画像不具合報告→Vercel Blob の別系統）。reflex-lab とはコード/Turso/Vercel 非共有。**kanji-drill は完全不可触**（git 0 dirty 確認）。元 `/Users/im/AI/hiragana` も不可触（reflex-lab/hiragana/ へコピー）。
+- **構造**: `reflex-lab/` ルート=ハブ画面（あそびハブ：2カード→ `/hiragana/` `/reflex/`）。reflex 旧一式は `reflex/` へ移動、hiragana 一式は `hiragana/` へコピー。`api/` `db/` `loop/` `.github/` はルートで統合。
+- **Phase1（codex）**: ルートに index/styles/manifest/sw/icon(ハブ)。`api/feedback.js`=reflex堅牢化(rate limit/Origin/ua_hash/ts)維持+`game∈{reflex,hiragana}`検証(既定reflex)+`kana_json`(hiragana時のみ・上限2000字)+INSERT列拡張。`reflex/feedback.js`に`game:"reflex"`付与（hiraganaは既に付与済）。`db/schema.sql`に game/kana_json。`db/migrate.mjs`(新規・冪等)=既存DBへ `ALTER ADD COLUMN game DEFAULT 'reflex'`/`kana_json`（既存reflex行は自動 game='reflex' にバックフィル＝非破壊）。`package.json` に `db:migrate`。
+- **Phase2（codex）**: `loop/config.mjs` に PROFILES{reflex,hiragana}（GAME_CONFIG_FILE/PATCHNOTES/DECISION/SEED/BALANCE_BOUNDS/DIFFICULTY_LEVERS をゲーム別、共有スカラーは据置）+ getProfile。`run.mjs --game`、`collect` は `WHERE game=?`、decide/gate/patch/notes を profile 伝播。gate の「game-config.jsのみ」「ALLOWED_DOCS」をゲーム別パス化、安全弁は全維持。`loop.yml`=単一ジョブで2ゲーム逐次(`for g in reflex hiragana`)→ reflex-lab-bot で1コミット→push（push競合回避）。
+- **検証 全green**: `node --check loop/*.mjs` / `node --test loop/*.test.mjs` 53/53 / 両ゲーム dry-run 完走（reflex は config v2 vs seed v1 でN=0→noop＝正しい挙動、hiragana はN=10で patch提案）/ ブラウザE2E(390×844: ハブ2カード描画・/hiragana/(おとあて)・/reflex/(config v2保持)・**コンソールエラー0**)/ 全ルート+音声 HTTP200。
+
+## マージ完了（2026-06-28）— PR #1 / squash `0a55d3c`
+- **pr-merge スキルで一気通貫**: 敵対的レビュー(blocker2/major1/minor複数・棄却0)→ codex で全修正 → 検証(node --check 全OK・`node --test` 53/53・両ゲーム dry-run 完走)→ ブランチ `hub-integration` → コミット → push → PR #1 → **squash マージ** → main 追従。
+- **レビュー修正の要点**: [blocker]移行順序事故=api/collect を未マイグレーション時 graceful 退化＋loop.yml に冪等 migrate ステップ(自己修復)／[blocker]loop.yml の git add から .gitignore対象 decision.json 除去／[major]run.mjs 異常終了 decision を --game 別パスへ／[minor]sub-SW のキャッシュ削除を自prefix限定・hiragana SW audio サブパス対応・verify に rows∈[0,1]・整数検査復活・loop:dry seed パス。
+- **本番稼働確認(2026-06-28)**: `/`=あそびハブ・`/hiragana/`=おとあて・`/reflex/`=瞬発ラボ 全 200、`/hiragana/audio/a.m4a` 200(audio/mp4)。Vercel 本番デプロイ成功。
+- **コミット除外**(意図通り): `decision.json`(reflex/・hiragana/)・`.env.local`・`node_modules/`（全て .gitignore）。
+
+## 未完了タスク（user 手動）
+- [ ] **Turso 列追加 `npm run db:migrate`**: 本番DB操作のため auto-mode 分類器がブロック（私は未実行）。**ただし必須ではない**=マージ済み loop.yml の migrate ステップが次回 cron(≤6h)で自動実行＋api/collect は graceful 退化するため無停止。即時有効化したい場合のみ user が手動実行（reflex-lab で `set -a; . ./.env.local; set +a; node db/migrate.mjs`）。
+- [ ] 後回しの軽微指摘（任意）: .choices 3列固定（人間承認レバー・既定3）、hub アイコンのオフライン欠け(cosmetic)。
+- [ ] 任意: ハブに kanji-drill カード追加（本番URL が分かれば `<a>` 1行で追加可）。
 
 ## 編集したファイル一覧
-- tools/gen-audio.sh（新規）
-- audio/*.m4a（生成・52）
+- tools/gen-audio.sh（新規）, audio/*.m4a（生成・52）
+- PWA一式（codex生成）: index.html, styles.css, game.js, game-config.js, data/kana.js, feedback.js, sw.js, manifest.webmanifest, icon.svg
+- icon-180.png / icon-192.png / icon-512.png（Chromeで生成）
+- api/feedback.js, db/schema.sql, loop/*, .github/workflows/loop.yml, package.json, vercel.json, README.md, PATCHNOTES.md 等
+- IMPLEMENTATION_BRIEF.md（codex委譲用の唯一の仕様源）, data_kana_table.json（検証済みテーブル）
 - project_summary.md（本ファイル）
 
 ## 音声マニフェスト（コード/SWはこの名前に束縛）

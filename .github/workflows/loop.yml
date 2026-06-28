@@ -1,0 +1,90 @@
+name: hiragana autopatch loop
+
+# プレイヤーの声(Turso) → 分類/gate → game-config.js 自動パッチ → PR自動マージ → Vercel自動デプロイ。
+# gate を通らない/ロジック要望は issue 化して人間承認へ落とす（事故防止）。
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # 6時間ごと (UTC)
+  workflow_dispatch: {} # 手動トリガ（初回検証用）
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: hiragana-loop
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Run autopatch loop
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          # コメント分類のコスト方針: 既定(auto)は無料のみ。
+          #   GROQ_API_KEY 有 → Groq 無料枠でLLM分類 / 無 → キー不要の heuristic。どちらも $0。
+          #   有料の Anthropic を使う時だけ REFLEX_NLP_PROVIDER=anthropic を設定する。
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REFLEX_NLP_PROVIDER: ${{ vars.REFLEX_NLP_PROVIDER }}
+        run: node loop/run.mjs --apply
+
+      - name: Act on decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ ! -f decision.json ]; then echo "decision.json なし→何もしない"; exit 0; fi
+          ACTION=$(jq -r '.action // "noop"' decision.json)
+          APPLIED=$(jq -r '.applied // false' decision.json)
+          echo "action=$ACTION applied=$APPLIED"
+
+          if [ "$ACTION" = "patch" ] && [ "$APPLIED" != "true" ]; then
+            echo "patch だが applied≠true（ファイル未書込）→ git操作せず終了"; exit 0
+          fi
+
+          if [ "$ACTION" = "patch" ]; then
+            TO=$(jq -r '.toVersion' decision.json)
+            SUMMARY=$(jq -r '.summary // ""' decision.json)
+            git config user.name  "hiragana-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add game-config.js PATCHNOTES.md
+            if git diff --cached --quiet; then
+              echo "差分なし→スキップ"; exit 0
+            fi
+            git commit \
+              -m "auto: balance/text patch → config v${TO}" \
+              -m "${SUMMARY}" \
+              -m "Co-Authored-By: hiragana autopatch loop <actions@users.noreply.github.com>"
+            # gate/verify を通過した小修正 → main へ直接コミット → Vercel が本番デプロイ。
+            # 監査証跡は main のコミット + PATCHNOTES.md + Turso patch_log。
+            # （PR自動マージ運用にしたい場合は repo設定で「Actions に PR作成・承認を許可」をON）
+            git push origin HEAD:main
+            echo "main へコミット → Vercel が本番デプロイ (config v${TO})"
+
+          elif [ "$ACTION" = "escalate" ]; then
+            TITLE=$(jq -r '.issueTitle // "[hiragana] 人間承認が必要"' decision.json)
+            jq -r '.issueBody // .reason // ""' decision.json > /tmp/issue-body.md
+            gh issue create --title "$TITLE" --body-file /tmp/issue-body.md --label "autopatch" || \
+              gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
+            echo "issue 起票（人間承認待ち）"
+
+          else
+            echo "noop: $(jq -r '.reason // ""' decision.json)"
+          fi
