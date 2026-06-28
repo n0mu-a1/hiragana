@@ -8,6 +8,7 @@
 
   const promptAudio = new Audio();
   const praiseAudio = new Audio();
+  let _praiseCtx = null;
   let audioUnlocked = false;
   let selectedRating = null;
   let state = freshState();
@@ -96,6 +97,14 @@
     audioUnlocked = true;
     promptAudio.src = "audio/a.m4a";
     praiseAudio.src = "audio/seikai.m4a";
+    try {
+      _praiseCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const _pSrc = _praiseCtx.createMediaElementSource(praiseAudio);
+      const _pGain = _praiseCtx.createGain();
+      _pGain.gain.value = 1.5;
+      _pSrc.connect(_pGain);
+      _pGain.connect(_praiseCtx.destination);
+    } catch (_e) {}
     [promptAudio, praiseAudio].forEach((audio) => {
       audio.muted = true;
       audio.play()
