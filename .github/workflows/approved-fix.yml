@@ -1,0 +1,125 @@
+name: approved-fix (patch-bot 承認型 自動修正)
+
+# patch-bot で ✅ 承認された不具合報告を受信し、Claude Code が最小差分で修正 → ブランチ → PR を作成する。
+# 課金方針: CLAUDE_CODE_OAUTH_TOKEN(Maxサブスク枠) で起動。ANTHROPIC_API_KEY は使わない。
+# マージは人間（自動マージしない）。
+
+on:
+  repository_dispatch:
+    types: [approved-fix]
+
+concurrency:
+  group: approved-fix
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require OAuth token
+        env:
+          TOK: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$TOK" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN 未設定。ローカルで 'claude setup-token' → gh secret set CLAUDE_CODE_OAUTH_TOKEN -R <repo> で登録してください。"
+            exit 1
+          fi
+
+      - name: Write report to file
+        env:
+          PB_ID: ${{ github.event.client_payload.id }}
+          PB_COMMENT: ${{ github.event.client_payload.comment }}
+          PB_IMAGE: ${{ github.event.client_payload.imageUrl }}
+          PB_SUMMARY: ${{ github.event.client_payload.summary }}
+          PB_INTENT: ${{ github.event.client_payload.fixIntent }}
+        run: |
+          mkdir -p .patchbot
+          # 変数値はシェルで再評価されないため、報告本文に backtick/$() を含んでも安全。
+          printf '%s\n' \
+            "# 承認済み不具合報告" \
+            "- 報告ID: $PB_ID" \
+            "- 要約: $PB_SUMMARY" \
+            "- 原文コメント: $PB_COMMENT" \
+            "- スクショURL: $PB_IMAGE" \
+            "- 修正方針(下書き): $PB_INTENT" \
+            > .patchbot/report.md
+
+      - name: Claude Code minimal fix
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --max-turns 30
+            --allowedTools Edit,Read,Write,Glob,Grep
+          prompt: |
+            あなたはこのリポジトリ(ひらがな おとあて・未就学児向けPWA)の保守担当。
+            承認済みの不具合報告 `.patchbot/report.md` を読み、不具合を最小差分で修正してください。
+
+            # 厳守
+            - 不具合の解消に必要な最小範囲のみ変更。挙動を変える大改修・リファクタ・コメント追加は禁止。
+            - 次のファイル/ディレクトリは絶対に変更しない（真実データ・音声・自律ループ・API・WF）:
+              data/kana.js / audio/ / loop/ / api/ / .github/
+            - 文言や難易度のみの軽微修正なら game-config.js（balance./text./theme.）を優先。
+            - 報告内容で再現/原因が特定できない場合は、推測でコードを書き換えない。
+              その場合は何も変更せず、なぜ特定できないかを `.patchbot/report.md` の末尾に「## 要調査」として追記するだけにする。
+
+      - name: Guard forbidden files
+        run: |
+          rm -f .patchbot/report.md
+          CHANGED=$(git status --porcelain | sed 's/^...//')
+          echo "changed files:"; echo "$CHANGED"
+          BAD=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              data/kana.js|audio/*|loop/*|api/*|.github/*)
+                echo "::error::禁止ファイルが変更されました: $f"; BAD=1;;
+            esac
+          done <<< "$CHANGED"
+          [ "$BAD" = 0 ] || exit 1
+
+      - name: Commit, push, open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PB_ID: ${{ github.event.client_payload.id }}
+          PB_COMMENT: ${{ github.event.client_payload.comment }}
+          PB_IMAGE: ${{ github.event.client_payload.imageUrl }}
+          PB_SUMMARY: ${{ github.event.client_payload.summary }}
+          PB_INTENT: ${{ github.event.client_payload.fixIntent }}
+        run: |
+          rm -rf .patchbot
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "変更なし（要調査 or 再現不可）。PR はスキップします。"
+            exit 0
+          fi
+          SAFE_ID=$(printf '%s' "$PB_ID" | tr -cd 'A-Za-z0-9._-')
+          BR="patchbot/fix-${SAFE_ID:-unknown}"
+          git config user.name "patch-bot"
+          git config user.email "patch-bot@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add -A
+          git commit -m "fix(report): $PB_SUMMARY"
+          git push -u origin "$BR"
+          printf '%s\n' \
+            "patch-bot で承認(✅)された報告の自動修正です。**マージは人間が確認してから**。" \
+            "" \
+            "- 報告ID: $PB_ID" \
+            "- 要約: $PB_SUMMARY" \
+            "- 原文コメント: $PB_COMMENT" \
+            "- スクショ: $PB_IMAGE" \
+            "- 修正方針(下書き): $PB_INTENT" \
+            > /tmp/pr-body.md
+          gh pr create --base main --head "$BR" \
+            --title "fix(report): $PB_SUMMARY" \
+            --body-file /tmp/pr-body.md \
+            --label patch-bot 2>/tmp/pr-err.log \
+            || { echo "ラベル無し等で失敗→ラベル無しで再試行"; gh pr create --base main --head "$BR" --title "fix(report): $PB_SUMMARY" --body-file /tmp/pr-body.md || cat /tmp/pr-err.log; }
