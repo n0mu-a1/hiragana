@@ -119,6 +119,7 @@
   function playClip(name) {
     praiseAudio.src = "audio/" + name + ".m4a";
     praiseAudio.currentTime = 0;
+    praiseAudio.volume = Math.min(1, B.praiseVolume || 1);
     praiseAudio.play().catch(() => {});
   }
 

@@ -3,7 +3,7 @@
 // 制約(reflex-lab loop/config.mjs): 配列/関数/getter/Symbol 不可・balance数値・theme=#rrggbb。
 // 出題行は activeRows配列でなく rows{} の数値重み(0..1, 0=出さない)で表現する。
 window.GAME_CONFIG = {
-  version: 1,
+  version: 2,
 
   balance: {
     // ── 自動レバー(loopが±25%/回・1リーフ/回で動かす連続値) ──
@@ -14,6 +14,7 @@ window.GAME_CONFIG = {
     choices: 3,                // カード枚数。3択設計の中核（[2,4]整数）
     questionsPerSession: 7,    // 1セッション問数=花丸スロット数（[5,20]整数）
     newKanaBoost: 1.5,         // 初出かなの出題重み
+    praiseVolume: 1.8,         // ほめ音の音量倍率(上限1.0にclamp)
     wrongLockMs: 600,          // 誤答後の一瞬の入力ロック(ms)。減点は無し
     retryHintDelayMs: 1200,    // 誤答後、正解カードを光らせ始める間(ms)
     rows: {                    // 出題行の重み(0..1)。0=出さない。あ行から段階解放(人間承認)
