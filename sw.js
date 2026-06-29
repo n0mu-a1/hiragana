@@ -1,4 +1,4 @@
-const CACHE = "hiragana-v4";
+const CACHE = "hiragana-v8";
 const ASSETS = [
   ".", "index.html", "styles.css",
   "data/kana.js", "game-config.js", "feedback.js", "game.js", "report.js",
@@ -13,6 +13,11 @@ const ASSETS = [
   "audio/ya.m4a","audio/yu.m4a","audio/yo.m4a",
   "audio/ra.m4a","audio/ri.m4a","audio/ru.m4a","audio/re.m4a","audio/ro.m4a",
   "audio/wa.m4a","audio/wo.m4a","audio/n.m4a",
+  "audio/ga.m4a","audio/gi.m4a","audio/gu.m4a","audio/ge.m4a","audio/go.m4a",
+  "audio/za.m4a","audio/ji.m4a","audio/zu.m4a","audio/ze.m4a","audio/zo.m4a",
+  "audio/da.m4a","audio/di.m4a","audio/du.m4a","audio/de.m4a","audio/do.m4a",
+  "audio/ba.m4a","audio/bi.m4a","audio/bu.m4a","audio/be.m4a","audio/bo.m4a",
+  "audio/pa.m4a","audio/pi.m4a","audio/pu.m4a","audio/pe.m4a","audio/po.m4a",
   "audio/seikai.m4a","audio/yoku.m4a","audio/hanamaru.m4a",
   "audio/sugoi.m4a","audio/mouichido.m4a","audio/oshii.m4a"
 ];
