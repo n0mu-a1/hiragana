@@ -29,9 +29,10 @@ synth() { # $1=出力名(拡張子なし) $2=読ませるテキスト
     > "$tmpq"
   curl -s -m 120 -X POST "$BASE/synthesis?speaker=$SPEAKER" \
     -H 'content-type: application/json' --data-binary @"$tmpq" -o "$tmpwav"
+  # loudnorm でかな間の音量ムラ・小音量を補正してから前後無音を付与
   ffmpeg -y -loglevel error -i "$tmpwav" \
-    -af "adelay=120|120,apad=pad_dur=0.22" \
-    -c:a aac -b:a 64k -movflags +faststart "$OUT/$name.m4a"
+    -af "loudnorm=I=-16:TP=-1.0,adelay=120,apad=pad_dur=0.22" \
+    -c:a aac -b:a 96k -movflags +faststart "$OUT/$name.m4a"
   rm -f "$tmpq" "$tmpwav"
   printf "  %-10s %s\n" "$name.m4a" "$text"
 }
