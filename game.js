@@ -9,6 +9,7 @@
   const promptAudio = new Audio();
   const praiseAudio = new Audio();
   let audioUnlocked = false;
+  const VOL_KEY = "hiragana_volume_v1";
   let selectedRating = null;
   let state = freshState();
 
@@ -23,6 +24,7 @@
   const btnReplay = $("btn-replay");
   const elChoices = $("choices");
   const elFlower = $("flower");
+  const volSlider = $("vol-slider");
 
   function freshState() {
     return {
@@ -84,6 +86,7 @@
       });
     });
     $("fb-submit").addEventListener("click", submitFeedbackManual);
+    volSlider.addEventListener("input", () => { localStorage.setItem(VOL_KEY, volSlider.value); });
   }
 
   function show(screen) {
@@ -111,12 +114,14 @@
   function playKana(romaji) {
     const item = TABLE[romaji];
     if (!item) return;
+    promptAudio.volume = parseFloat(volSlider.value);
     promptAudio.src = "audio/" + item.audio;
     promptAudio.currentTime = 0;
     promptAudio.play().catch(() => {});
   }
 
   function playClip(name) {
+    praiseAudio.volume = parseFloat(volSlider.value);
     praiseAudio.src = "audio/" + name + ".m4a";
     praiseAudio.currentTime = 0;
     praiseAudio.play().catch(() => {});
@@ -406,6 +411,8 @@
   applyTheme();
   bindText();
   wire();
+  const savedVol = localStorage.getItem(VOL_KEY);
+  if (savedVol !== null) volSlider.value = savedVol;
   F.flush();
   show(screenStart);
 })();
