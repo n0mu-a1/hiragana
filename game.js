@@ -66,6 +66,7 @@
     $("btn-retry").textContent = T.retryButton;
     $("btn-home").textContent = T.homeButton;
     $("btn-home").setAttribute("aria-label", T.homeButton);
+    $("btn-result-home").textContent = T.resultHomeButton;
     $("result-text").textContent = T.resultPrefix;
     $("feedback-heading").textContent = T.feedbackHeading;
     $("fb-thanks").textContent = T.feedbackThanks;
@@ -85,6 +86,7 @@
     btnReplay.addEventListener("click", playPrompt);
     $("btn-retry").addEventListener("click", startSession);
     $("btn-home").addEventListener("click", goHome);
+    $("btn-result-home").addEventListener("click", goToStart);
     document.querySelectorAll(".rating-button").forEach((button) => {
       button.addEventListener("click", () => {
         selectedRating = button.dataset.rating;
@@ -395,6 +397,14 @@
     hideFlower();
     if (state.idx > 0 || state.correctCount > 0) endSession();
     else show(screenStart);
+  }
+
+  // 結果画面からトップ（ひらがな/カタカナ選択）へ。評価は自動記録して破棄しない
+  function goToStart() {
+    clearTimers();
+    stopPrompt();
+    submitPendingFeedback();
+    show(screenStart);
   }
 
   function renderResult(prefix, count) {

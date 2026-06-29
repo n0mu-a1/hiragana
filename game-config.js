@@ -28,6 +28,7 @@ window.GAME_CONFIG = {
     replayButton: "🔊 もういちど",
     retryButton: "▶ もういちど",
     homeButton: "🏠",
+    resultHomeButton: "🏠 ホーム",
     resultPrefix: "はなまる",
     feedbackHeading: "むずかしさは どうでしたか？",
     feedbackThanks: "ありがとう！",
