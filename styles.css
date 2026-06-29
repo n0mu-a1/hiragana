@@ -359,6 +359,22 @@ button {
   }
 }
 
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.volume-control label {
+  font-size: 1.5rem;
+}
+
+.volume-control input[type="range"] {
+  width: clamp(140px, 40vw, 220px);
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* ===== ふぐあい ほうこく（report.js）===== */
 #rpt-fab {
   position: fixed; right: 12px; bottom: 12px; z-index: 50;
