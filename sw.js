@@ -1,4 +1,4 @@
-const CACHE = "hiragana-v8";
+const CACHE = "hiragana-v9";
 const ASSETS = [
   ".", "index.html", "styles.css",
   "data/kana.js", "game-config.js", "feedback.js", "game.js", "report.js",
