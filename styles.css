@@ -88,6 +88,34 @@ button {
   font-size: clamp(1.7rem, 7vw, 2.6rem);
 }
 
+.mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  width: min(96vw, 560px);
+}
+
+.mode-button {
+  flex: 1 1 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 132px;
+  padding: 18px 12px;
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--accent) 70%, #9b3d57);
+}
+
+.mode-button:nth-child(2) { background: var(--correct); box-shadow: 0 8px 0 color-mix(in srgb, var(--correct) 70%, #2c7a52); }
+.mode-button:nth-child(3) { background: var(--halo); box-shadow: 0 8px 0 color-mix(in srgb, var(--halo) 70%, #9b6a14); color: var(--card-ink); }
+.mode-button:nth-child(4) { background: #5cb8e6; box-shadow: 0 8px 0 color-mix(in srgb, #5cb8e6 70%, #1f6f9b); }
+
+.mode-kana { font-size: clamp(2.4rem, 11vw, 3.4rem); line-height: 1; font-weight: 900; }
+.mode-label { font-size: clamp(0.85rem, 3.6vw, 1.05rem); font-weight: 800; }
+
 .sound-button {
   min-width: 160px;
   background: var(--accent-dim);
@@ -126,6 +154,9 @@ button {
   justify-content: center;
   flex-wrap: wrap;
   gap: 6px;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--hanamaru);
 }
 
 .slot {

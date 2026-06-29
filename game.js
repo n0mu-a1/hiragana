@@ -17,6 +17,7 @@
   }
 
   const screenStart = $("screen-start");
+  const screenModes = $("screen-modes");
   const screenQuiz = $("screen-quiz");
   const screenResult = $("screen-result");
   const elProgress = $("progress");
@@ -27,6 +28,7 @@
   function freshState() {
     return {
       queue: [],
+      cursor: 0,
       idx: 0,
       total: 0,
       correctCount: 0,
@@ -57,7 +59,6 @@
 
   function bindText() {
     $("app-title").textContent = T.title;
-    $("btn-start").textContent = T.startButton;
     btnReplay.textContent = T.replayButton;
     btnReplay.setAttribute("aria-label", T.replayButton);
     $("btn-retry").textContent = T.retryButton;
@@ -73,7 +74,12 @@
   }
 
   function wire() {
-    $("btn-start").addEventListener("click", startSession);
+    $("btn-script-hira").addEventListener("click", () => chooseScript("hira"));
+    $("btn-script-kata").addEventListener("click", () => chooseScript("kata"));
+    $("btn-mode-sei").addEventListener("click", () => startSession("sei"));
+    $("btn-mode-daku").addEventListener("click", () => startSession("daku"));
+    $("btn-mode-han").addEventListener("click", () => startSession("han"));
+    $("btn-modes-back").addEventListener("click", () => show(screenStart));
     btnReplay.addEventListener("click", playPrompt);
     $("btn-retry").addEventListener("click", startSession);
     $("btn-home").addEventListener("click", goHome);
@@ -154,8 +160,31 @@
     return item?.seen ? item.correct / item.seen : 0;
   }
 
+  // スクリプト(ひらがな/カタカナ) × 種別(清音/濁音/半濁音) で出題行を決める
+  const ROWS = {
+    hira: {
+      sei:  ["a", "ka", "sa", "ta", "na", "ha", "ma", "ya", "ra", "wa"],
+      daku: ["ga", "za", "da", "ba"],
+      han:  ["pa"],
+    },
+    kata: {
+      sei:  ["a_k", "ka_k", "sa_k", "ta_k", "na_k", "ha_k", "ma_k", "ya_k", "ra_k", "wa_k"],
+      daku: ["ga_k", "za_k", "da_k", "ba_k"],
+      han:  ["pa_k"],
+    },
+  };
+  // モード選択ボタンに出す代表字（スクリプト別）
+  const MODE_GLYPH = {
+    hira: { sei: "あ", daku: "が", han: "ぱ" },
+    kata: { sei: "ア", daku: "ガ", han: "パ" },
+  };
+  let currentScript = "hira";
+  let currentType = "sei";
+  const soundOf = (k) => k.sound || k.romaji; // ぢ=じ・づ=ず（ヂ=ジ・ヅ=ズ）の同音判定用
+
   function activePool() {
-    const pool = KD.kana.filter((k) => (B.rows[k.row] || 0) > 0);
+    const rows = ROWS[currentScript][currentType] || ROWS.hira.sei;
+    const pool = KD.kana.filter((k) => rows.includes(k.row));
     return pool.length ? pool : KD.kana.filter((k) => k.row === "a");
   }
 
@@ -175,39 +204,34 @@
     return items[items.length - 1];
   }
 
-  function buildQueue() {
-    const pool = activePool();
-    const queue = [];
-    const total = Math.max(1, Math.trunc(B.questionsPerSession));
-    for (let i = 0; i < total; i++) {
-      let candidates = pool;
-      if (pool.length > 1 && queue.length) candidates = pool.filter((k) => k.romaji !== queue[queue.length - 1]);
-      queue.push(weightedPick(candidates).romaji);
+  // エンドレス: 五十音順(あ→ん)に巡回。尽きたら継ぎ足し、ん の次は あ に戻る
+  function pushBatch() {
+    const pool = activePool(); // data/kana.js の並び＝あ→ん
+    const batch = Math.max(1, Math.trunc(B.questionsPerSession));
+    for (let i = 0; i < batch; i++) {
+      state.queue.push(pool[state.cursor % pool.length].romaji);
+      state.cursor = (state.cursor + 1) % pool.length;
     }
-    return queue;
   }
 
   function chooseDistractors(answer) {
     const wanted = Math.max(1, Math.trunc(B.choices) - 1);
     const picked = new Set([answer.romaji]);
     const out = [];
-    const pool = activePool();
+    // 同モード内のみ＆同音(じ/ぢ・ず/づ)は除外＝音で区別できないダミーを出さない
+    const pool = activePool().filter((k) => soundOf(k) !== soundOf(answer));
+    const similar = answer.confusables.map((r) => TABLE[r]).filter((k) => k && pool.includes(k));
     while (out.length < wanted) {
-      let source = pool;
-      if (Math.random() < B.distractorSimilarity) {
-        const similar = answer.confusables.map((r) => TABLE[r]).filter(Boolean);
-        if (similar.length) source = similar;
-      }
+      const source = (similar.length && Math.random() < B.distractorSimilarity) ? similar : pool;
       const choices = source.filter((k) => !picked.has(k.romaji));
       if (!choices.length) break;
       const item = choices[Math.floor(Math.random() * choices.length)];
       picked.add(item.romaji);
       out.push(item.romaji);
     }
-    const all = KD.kana.filter((k) => !picked.has(k.romaji));
-    while (out.length < wanted && all.length) {
-      const idx = Math.floor(Math.random() * all.length);
-      const item = all.splice(idx, 1)[0];
+    const rest = pool.filter((k) => !picked.has(k.romaji));
+    while (out.length < wanted && rest.length) {
+      const item = rest.splice(Math.floor(Math.random() * rest.length), 1)[0];
       picked.add(item.romaji);
       out.push(item.romaji);
     }
@@ -223,13 +247,23 @@
     return a;
   }
 
-  function startSession() {
+  // ひらがな/カタカナ選択 → モード選択画面へ
+  function chooseScript(script) {
+    currentScript = script;
+    const g = MODE_GLYPH[script];
+    $("glyph-sei").textContent = g.sei;
+    $("glyph-daku").textContent = g.daku;
+    $("glyph-han").textContent = g.han;
+    show(screenModes);
+  }
+
+  function startSession(type) {
+    if (typeof type === "string") currentType = type;
     clearTimers();
     submitPendingFeedback();
     unlockAudio();
     state = freshState();
-    state.queue = buildQueue();
-    state.total = state.queue.length;
+    pushBatch();
     show(screenQuiz);
     renderProgress();
     nextQuestion();
@@ -237,7 +271,7 @@
 
   function nextQuestion() {
     clearTimers();
-    if (state.idx >= state.total) return endSession();
+    if (state.idx >= state.queue.length) pushBatch(); // エンドレス: 終了せず継ぎ足す
     state.current = TABLE[state.queue[state.idx]];
     state.wrongThisQ = false;
     state.locked = false;
@@ -285,13 +319,13 @@
     state.correctCount += 1;
     showFlower();
     playClip(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
-    fillProgressSlot(state.idx);
     state.advanceTimer = setTimeout(() => {
       if (screenQuiz.classList.contains("hidden")) return;
       hideFlower();
       state.idx += 1;
       nextQuestion();
     }, B.autoAdvanceMs);
+    renderProgress();
   }
 
   function handleWrong(el) {
@@ -320,18 +354,9 @@
     state.awaitingFeedback = true;
   }
 
+  // エンドレス: 固定スロットでなく、ためた はなまる数を表示
   function renderProgress() {
-    elProgress.innerHTML = "";
-    for (let i = 0; i < state.total; i++) {
-      const slot = document.createElement("span");
-      slot.className = "slot" + (i < state.correctCount ? " filled" : "");
-      elProgress.append(slot);
-    }
-  }
-
-  function fillProgressSlot(i) {
-    const slot = elProgress.children[i];
-    if (slot) slot.classList.add("filled");
+    elProgress.textContent = "💮 " + state.correctCount;
   }
 
   function showFlower() {
@@ -357,17 +382,19 @@
     state.unlockTimer = null;
   }
 
+  // エンドレスでは 🏠 が唯一の区切り＝結果（はなまる集計＋むずかしさ評価）へ
   function goHome() {
     clearTimers();
-    submitPendingFeedback();
     stopPrompt();
     hideFlower();
-    show(screenStart);
+    if (state.idx > 0 || state.correctCount > 0) endSession();
+    else show(screenStart);
   }
 
   function renderResult(prefix, count) {
     $("result-text").textContent = prefix;
-    $("result-mark").textContent = Array.from({ length: count }, () => "💮").join("");
+    const shown = Math.min(count, 20); // エンドレス: 表示は20個まで（残りは数字で）
+    $("result-mark").textContent = Array.from({ length: shown }, () => "💮").join("") + (count > shown ? " ×" + count : "");
   }
 
   function resetFeedbackUI() {
@@ -377,7 +404,7 @@
   }
 
   function deriveRating() {
-    const q = state.total;
+    const q = state.idx; // こなした問数
     const firstTryRate = q ? state.firstTryCorrect / q : 0;
     const retriesPerQ = q ? state.retries / q : 0;
     return (firstTryRate < 0.55 || retriesPerQ >= 1.0) ? "hard"

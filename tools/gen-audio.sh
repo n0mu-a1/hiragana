@@ -45,6 +45,19 @@ for pair in "${KANA[@]}"; do
   synth "${pair%%:*}" "${pair#*:}"
 done
 
+echo "▶ 濁音20字・半濁音5字"
+# ぢ=di / づ=du はファイル名衝突回避（じ=ji・ず=zu と同音）
+DAKU=(
+  ga:が gi:ぎ gu:ぐ ge:げ go:ご
+  za:ざ ji:じ zu:ず ze:ぜ zo:ぞ
+  da:だ di:ぢ du:づ de:で do:ど
+  ba:ば bi:び bu:ぶ be:べ bo:ぼ
+  pa:ぱ pi:ぴ pu:ぷ pe:ぺ po:ぽ
+)
+for pair in "${DAKU[@]}"; do
+  synth "${pair%%:*}" "${pair#*:}"
+done
+
 echo "▶ ほめ言葉・再挑戦"
 synth seikai      "せいかい！"
 synth yoku        "よく できました"
